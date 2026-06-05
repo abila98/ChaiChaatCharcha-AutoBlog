@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StreetSip Diaries</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, serif; background: #faf9f6; color: #222; }
+    header { text-align: center; padding: 3rem 1rem 1rem; border-bottom: 1px solid #e0ddd8; }
+    header h1 { font-size: 2.5rem; letter-spacing: -1px; }
+    header p { color: #888; margin-top: 0.5rem; font-style: italic; }
+    .add-btn { display: block; margin: 2rem auto; padding: 10px 28px; background: #222; color: #fff; border: none; border-radius: 4px; font-size: 15px; cursor: pointer; }    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10; align-items: center; justify-content: center; }
+    .modal-bg.open { display: flex; }
+    .modal { background: #fff; border-radius: 8px; padding: 2rem; width: 90%; max-width: 480px; }
+    .modal h2 { margin-bottom: 1.5rem; font-size: 1.3rem; }
+    .modal input, .modal textarea, .modal select { width: 100%; padding: 10px; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+    .modal textarea { height: 100px; resize: vertical; }    .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-btns button { padding: 9px 20px; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+    .btn-cancel { background: #f0f0f0; }
+    .btn-submit { background: #222; color: #fff; }
+    .entries { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    .entry { background: #fff; border: 1px solid #e8e5e0; border-radius: 8px; margin-bottom: 2rem; overflow: hidden; }
+    .entry img { width: 100%; height: 260px; object-fit: cover; }
+    .entry-body { padding: 1.25rem 1.5rem; }
+    .entry-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .entry-title { font-size: 1.3rem; font-weight: bold; }
+    .stars { color: #f5a623; font-size: 1.1rem; }
+    .entry-location { font-size: 13px; color: #999; margin-bottom: 0.75rem; }
+    .entry-review { font-size: 15px; line-height: 1.7; color: #444; }
+    .entry-date { font-size: 12px; color: #bbb; margin-top: 0.75rem; }
+    .delete-btn { float: right; background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer; }
+    .delete-btn:hover { color: #e00; }
+    .empty { text-align: center; color: #aaa; padding: 4rem; font-style: italic; }
+    .loading { text-align: center; padding: 4rem; color: #aaa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>StreetSip Diaries ☕ 🍜 </h1>
+  <p>a personal trail of street food & coffee worth remembering</p>
+</header>
+
+<button class="add-btn" onclick="openModal()">+ add entry</button>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h2>new entry</h2>
+    <input type="text" id="title" placeholder="what did you try?" />
+    <input type="text" id="location" placeholder="where was it? (e.g. Panvel market)" />
+    <select id="rating">
+      <option value="5">⭐ ⭐ ⭐ ⭐ ⭐  — life changing</option>
+      <option value="4">⭐ ⭐ ⭐ ⭐  — really good</option>
+      <option value="3">⭐ ⭐ ⭐  — solid</option>
+      <option value="2">⭐ ⭐  — meh</option>
+      <option value="1">⭐  — never again</option>
+    </select>
+    <textarea id="review" placeholder="your honest review..."></textarea>
+    <input type="file" id="image" accept="image/*" />
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">cancel</button>
+      <button class="btn-submit" onclick="submitEntry()">post it</button>
+    </div>
+  </div>
+</div>
+
+<div class="entries" id="entries">
+  <div class="loading">loading your trail...</div>
+</div>
+
+<script>
+  function openModal() { document.getElementById('modal').classList.add('open'); }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  function stars(n) { return '⭐ '.repeat(n); }
+
+  function formatDate(iso) {
+    return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  async function loadEntries() {
+    const res = await fetch('/api/entries');
+    const entries = await res.json();
+    const el = document.getElementById('entries');
+    if (!entries.length) { el.innerHTML = '<div class="empty">no entries yet. go eat something.</div>'; return; }
+    el.innerHTML = entries.map(e => `
+      <div class="entry" id="entry-${e.entryId}">
+        <img src="${e.imageUrl}" alt="${e.title}" />
+        <div class="entry-body">
+          <div class="entry-meta">
+            <span class="entry-title">${e.title}</span>
+            <span class="stars">${stars(e.rating)}</span>
+          </div>
+          <div class="entry-location">📍  ${e.location}</div>
+          <div class="entry-review">${e.review}</div>
+          <div class="entry-date">
+            ${formatDate(e.createdAt)}
+            <button class="delete-btn" onclick="deleteEntry('${e.entryId}')">✕</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function submitEntry() {
+    const title = document.getElementById('title').value.trim();
+    const location = document.getElementById('location').value.trim();
+    const rating = document.getElementById('rating').value;
+    const review = document.getElementById('review').value.trim();
+    const image = document.getElementById('image').files[0];
+    if (!title || !review || !image) { alert('fill in title, review and image!'); return; }
+    const form = new FormData();
+    form.append('title', title);
+    form.append('location', location);
+    form.append('rating', rating);
+    form.append('review', review);
+    form.append('image', image);
+    await fetch('/api/entries', { method: 'POST', body: form });
+    closeModal();
+    loadEntries();
+  }
+
+  async function deleteEntry(id) {
+    if (!confirm('delete this entry?')) return;
+    await fetch(`/api/entries/${id}`, { method: 'DELETE' });
+    document.getElementById(`entry-${id}`).remove();
+  }
+
+  loadEntries();
+</script>
+</body>
+</html>
